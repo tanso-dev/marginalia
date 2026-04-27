@@ -59,7 +59,8 @@ function BookContent() {
     const data = await res.json();
     setBook((b) => ({ ...b, chaptersRead: data.chaptersRead }));
 
-    if (!isRead && !socraticQ) generateSocratic(num);
+    // Only trigger reflection when marking a chapter as COMPLETE (not when unchecking)
+    if (!isRead) generateSocratic(num);
   };
 
   const generateSocratic = async (chapterNum) => {
@@ -285,45 +286,75 @@ function BookContent() {
               })}
             </div>
 
-            {/* Socratic prompt */}
-            {socraticLoading && (
-              <div className="mt-5 p-5 bg-accent/5 border border-border border-l-[3px] border-l-accent rounded-r-xl">
-                <h4 className="font-display text-sm text-accent flex items-center gap-2">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0018 8 6 6 0 006 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5"/></svg>
-                  Generating reflection prompt...
-                </h4>
-              </div>
-            )}
+            {/* Socratic Reflection Modal */}
+            {(socraticLoading || socraticQ) && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(15,15,14,0.8)", backdropFilter: "blur(4px)" }}>
+                <div className="bg-surface border border-border rounded-2xl w-full max-w-lg shadow-2xl shadow-black/50 overflow-hidden">
+                  {/* Modal header */}
+                  <div className="px-6 pt-6 pb-4 border-b border-border flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-full bg-accent/15 flex items-center justify-center">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-accent" strokeWidth="1.5">
+                          <path d="M9 18h6"/><path d="M10 22h4"/>
+                          <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0018 8 6 6 0 006 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="font-display text-base font-semibold">Time to Reflect</h3>
+                        {socraticQ && <p className="text-xs text-text-dim mt-0.5">Chapter {socraticQ.chapterNum}</p>}
+                      </div>
+                    </div>
+                    {!socraticLoading && (
+                      <button onClick={() => setSocraticQ(null)} className="text-text-dim hover:text-text text-xl leading-none px-1 transition-colors">×</button>
+                    )}
+                  </div>
 
-            {socraticQ && !socraticLoading && (
-              <div className="mt-5 p-5 bg-accent/5 border border-border border-l-[3px] border-l-accent rounded-r-xl">
-                <h4 className="font-display text-sm text-accent flex items-center gap-2 mb-2.5">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0018 8 6 6 0 006 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5"/></svg>
-                  Reflection — Chapter {socraticQ.chapterNum}
-                </h4>
-                <p className="text-sm text-text italic leading-relaxed">{socraticQ.question}</p>
-                <div className="flex gap-2.5 mt-3">
-                  <button
-                    onClick={() => {
-                      const ch = book.chapters?.find((c) => c.number === socraticQ.chapterNum);
-                      if (ch) {
-                        openDiscussion(ch);
-                        setTimeout(() => {
-                          setDiscussion((d) => d ? ({ ...d, messages: [...d.messages, { role: "ai", text: socraticQ.question }] }) : d);
-                        }, 300);
-                      }
-                      setSocraticQ(null);
-                    }}
-                    className="px-4 py-2 bg-accent-dim hover:bg-accent text-text rounded-md text-xs transition-colors"
-                  >
-                    Reflect on this
-                  </button>
-                  <button onClick={() => generateSocratic(socraticQ.chapterNum)} className="px-4 py-2 border border-border text-text-muted rounded-md text-xs hover:border-border-light hover:text-text transition-all">
-                    Different question
-                  </button>
-                  <button onClick={() => setSocraticQ(null)} className="px-4 py-2 border border-border text-text-muted rounded-md text-xs hover:border-border-light hover:text-text transition-all">
-                    Dismiss
-                  </button>
+                  {/* Modal body */}
+                  <div className="px-6 py-6">
+                    {socraticLoading ? (
+                      <div className="flex flex-col items-center py-8">
+                        <div className="spinner mb-4" />
+                        <p className="text-text-dim text-sm italic">Crafting a reflection question...</p>
+                      </div>
+                    ) : socraticQ ? (
+                      <>
+                        <p className="text-[15px] text-text leading-relaxed italic font-body">
+                          "{socraticQ.question}"
+                        </p>
+                        <div className="flex flex-col gap-2.5 mt-6">
+                          <button
+                            onClick={() => {
+                              const ch = book.chapters?.find((c) => c.number === socraticQ.chapterNum);
+                              if (ch) {
+                                openDiscussion(ch);
+                                setTimeout(() => {
+                                  setDiscussion((d) => d ? ({ ...d, messages: [...d.messages, { role: "ai", text: socraticQ.question }] }) : d);
+                                }, 300);
+                              }
+                              setSocraticQ(null);
+                            }}
+                            className="w-full py-3 bg-accent-dim hover:bg-accent text-text rounded-lg text-sm font-medium transition-colors"
+                          >
+                            Open Discussion
+                          </button>
+                          <div className="flex gap-2.5">
+                            <button
+                              onClick={() => generateSocratic(socraticQ.chapterNum)}
+                              className="flex-1 py-2.5 border border-border text-text-muted rounded-lg text-xs hover:border-border-light hover:text-text transition-all"
+                            >
+                              Different question
+                            </button>
+                            <button
+                              onClick={() => setSocraticQ(null)}
+                              className="flex-1 py-2.5 border border-border text-text-muted rounded-lg text-xs hover:border-border-light hover:text-text transition-all"
+                            >
+                              Skip for now
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             )}
