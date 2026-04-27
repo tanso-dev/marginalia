@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getUser } from "@/lib/auth";
+import { getUserFromRequest } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 
-export async function GET() {
+export async function GET(req) {
   try {
-    const payload = await getUser();
+    const payload = await getUserFromRequest(req);
     if (!payload) {
       return NextResponse.json({ user: null }, { status: 401 });
     }

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getUser } from "@/lib/auth";
+import { getUserFromRequest } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { askClaudeJSON } from "@/lib/ai";
 
 export async function POST(req) {
-  const payload = await getUser();
+  const payload = await getUserFromRequest(req);
   if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { title, author, year, genre, coverId, olKey } = await req.json();
@@ -100,8 +100,8 @@ For the chapters array, include actual chapter titles/numbers. If the book has m
 }
 
 // GET: list all user books
-export async function GET() {
-  const payload = await getUser();
+export async function GET(req) {
+  const payload = await getUserFromRequest(req);
   if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const db = getDb();
