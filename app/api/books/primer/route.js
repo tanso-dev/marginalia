@@ -35,27 +35,35 @@ export async function POST(req) {
     } else {
       // Step 2: Generate primer via AI (first user to open this book pays the cost)
       const primer = await askClaudeJSON(
-        `You are a literary scholar. Generate a comprehensive primer for the given book. Return JSON with:
+        `You are a literary scholar with deep knowledge of book structures. Generate a comprehensive primer for the given book. Return JSON with:
 {
   "authorBio": "A 2-3 sentence bio of the author focusing on their literary significance",
   "historicalContext": "2-3 sentences about the historical period and context in which the book was written",
   "themes": ["theme1", "theme2"],
   "themeDescriptions": {"theme1": "brief description"},
-  "structureNote": "1 sentence explaining how this book is structured (e.g. 'Traditional chapters', 'Two novellas', 'Numbered fragments', 'Alternating perspectives', etc.)",
-  "chapters": [{"number": 1, "title": "Section or chapter title", "summary": "1 sentence teaser without spoilers"}],
+  "structureNote": "1 sentence explaining how this book is structured",
+  "chapters": [{"number": 1, "title": "...", "part": "Part name if applicable", "summary": "1 sentence teaser without spoilers"}],
   "readingTips": "1-2 sentences of advice for approaching this book"
 }
 
-IMPORTANT — About the "chapters" array:
-- First, determine how the book is actually structured. Not all books use conventional numbered chapters.
-- If the book has standard chapters, list them normally.
-- If the book contains multiple novellas or parts (like an omnibus), create entries for each major part/novella, then subdivide if meaningful. Example: {"number": 1, "title": "Part I: Hear the Wind Sing"} followed by sections within it.
-- If the book uses numbered fragments, short vignettes, or non-linear sections, group them into logical reading segments of roughly equal size (e.g. "Sections 1-5", "Sections 6-12") rather than listing every tiny fragment.
-- If the book alternates between storylines, narrators, or timelines, make that clear in each entry's title (e.g. "Chapters 1-3 (1984 Timeline)" or "Part II: Bone Clocks — Hugo's Narrative").
-- Maximum 30 entries. The goal is to create meaningful checkpoints for a reader to track progress and reflect — not to exhaustively list every page break.
-- Keep summaries spoiler-light.`,
+CRITICAL RULES for the "chapters" array:
+
+1. ACCURACY IS PARAMOUNT. You must faithfully represent the book's actual structure. Do not invent, merge, or rename parts of the book. Use the real titles and divisions as published.
+
+2. For OMNIBUS or COLLECTED editions (two or more works in one volume):
+   - Treat each work as its own distinct section. Do NOT blend them together.
+   - Use the "part" field to label which work each entry belongs to.
+   - Example for "Wind/Pinball" by Murakami: the first work is "Hear the Wind Sing" and the second is "Pinball, 1973". These are two separate novellas. Sections from "Hear the Wind Sing" must have "part": "Hear the Wind Sing", sections from the second must have "part": "Pinball, 1973".
+
+3. For books with PARTS, ACTS, or named divisions: use the "part" field to label the parent division. Example: {"number": 1, "title": "Chapter 1: The Boy Who Lived", "part": "Part One: The Philosopher's Stone"}.
+
+4. For standard chapter books: set "part" to null.
+
+5. If the book uses numbered fragments or short sections, group them into logical reading segments within their respective parts. Never group sections across different parts/works.
+
+6. Maximum 30 entries total. Keep summaries spoiler-light.`,
         `Book: "${title}" by ${author}`,
-        2048
+        3000
       );
 
       if (!primer) {

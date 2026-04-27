@@ -356,20 +356,35 @@ function BookContent() {
 
             {/* Chapter list */}
             <div className="flex flex-col gap-1">
-              {(book.chapters || []).map((ch) => {
-                const isRead = chaptersRead.includes(ch.number);
-                const isExpanded = expandedChapter === ch.number;
-                return (
-                  <div key={ch.number} className="rounded-lg hover:bg-surface transition-colors">
-                    {/* Main row — tappable on mobile to expand */}
-                    <div
-                      className="flex items-center gap-3.5 px-4 py-3.5 cursor-pointer md:cursor-default"
-                      onClick={() => {
-                        if (window.innerWidth < 768) {
-                          setExpandedChapter(isExpanded ? null : ch.number);
-                        }
-                      }}
-                    >
+              {(() => {
+                const chapters = book.chapters || [];
+                let currentPart = null;
+                return chapters.map((ch) => {
+                  const isRead = chaptersRead.includes(ch.number);
+                  const isExpanded = expandedChapter === ch.number;
+                  const showPartHeader = ch.part && ch.part !== currentPart;
+                  if (ch.part) currentPart = ch.part;
+
+                  return (
+                    <div key={ch.number}>
+                      {/* Part divider for multi-part books */}
+                      {showPartHeader && (
+                        <div className="flex items-center gap-3 px-4 pt-6 pb-2">
+                          <div className="h-px flex-1 bg-border" />
+                          <span className="text-xs uppercase tracking-widest text-accent font-display font-semibold whitespace-nowrap">{ch.part}</span>
+                          <div className="h-px flex-1 bg-border" />
+                        </div>
+                      )}
+                      <div className="rounded-lg hover:bg-surface transition-colors">
+                        {/* Main row — tappable on mobile to expand */}
+                        <div
+                          className="flex items-center gap-3.5 px-4 py-3.5 cursor-pointer md:cursor-default"
+                          onClick={() => {
+                            if (window.innerWidth < 768) {
+                              setExpandedChapter(isExpanded ? null : ch.number);
+                            }
+                          }}
+                        >
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleChapter(ch.number); }}
                         className={`w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
@@ -445,8 +460,10 @@ function BookContent() {
                       </div>
                     )}
                   </div>
-                );
-              })}
+                  </div>
+                  );
+                });
+              })()}
             </div>
 
             {/* Socratic Reflection Modal */}

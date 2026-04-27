@@ -38,8 +38,10 @@ export async function POST(req) {
   const chapter = chapters.find((c) => c.number === chapterNumber);
 
   const response = await askClaude(
-    `You are a Socratic literary tutor. Generate ONE thought-provoking reflection question for a reader who just finished the given section of this book. The question should push them to think about character motivations, thematic implications, narrative technique, or connections to their own life. Do NOT summarize the section. Just ask the question — nothing else. No preamble. The question should be 1-2 sentences max. Note: this book may not follow a traditional chapter structure — adapt your question to the specific section format.`,
-    `Book: "${book.title}" by ${book.author}. Section ${chapterNumber}: "${chapter?.title || ""}". Book structure: ${book.structure_note || "Standard chapters"}. Themes: ${themes.join(", ")}.`
+    `You are a Socratic literary tutor. Generate ONE thought-provoking reflection question for a reader who just finished the given section. The question should push them to think about character motivations, thematic implications, narrative technique, or connections to their own life. Do NOT summarize the section. Just ask the question — nothing else. No preamble. 1-2 sentences max.
+
+IMPORTANT: Your question must be specific to the section indicated. If this book contains multiple works (e.g. an omnibus with two novellas), your question MUST only reference events, characters, and themes from the specific work/part this section belongs to. Do NOT cross-reference other parts of the book.`,
+    `Book: "${book.title}" by ${book.author}. Section ${chapterNumber}: "${chapter?.title || ""}"${chapter?.part ? ` (Part of: "${chapter.part}")` : ""}. Book structure: ${book.structure_note || "Standard chapters"}. Themes: ${themes.join(", ")}.`
   );
 
   // Save to shared chapter_reflections table

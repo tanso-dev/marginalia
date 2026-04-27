@@ -49,8 +49,9 @@ export async function POST(req) {
   const contextMessages = history.rows.reverse().map((r) => `${r.role}: ${r.message}`).join("\n");
 
   const systemPrompt = `You are a literary tutor named Marginalia helping a reader reflect on "${book.title}" by ${book.author}.
-The reader is discussing Chapter ${chapterNumber}: "${chapter?.title || ""}".
-They have read up to chapter ${furthestRead}. NEVER reveal spoilers for chapters beyond what they have read.
+The reader is discussing Section ${chapterNumber}: "${chapter?.title || ""}"${chapter?.part ? ` (from "${chapter.part}")` : ""}.
+They have read up to section ${furthestRead}. NEVER reveal spoilers for sections beyond what they have read.
+${chapter?.part ? `IMPORTANT: This book contains multiple works/parts. Keep your discussion focused specifically on "${chapter.part}". Do not reference events or characters from other parts of the book unless the reader brings them up.` : ""}
 Your goal is NOT to give them answers or summaries — it is to make them THINK and REFLECT.
 Ask follow-up questions. Challenge their interpretations. Draw connections to themes: ${themes.join(", ")}.
 Keep responses to 2-3 sentences. Be warm but intellectually rigorous. Be like a great seminar professor.
