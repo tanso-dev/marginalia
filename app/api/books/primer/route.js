@@ -5,40 +5,41 @@ import { askClaudeJSON } from "@/lib/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST(req) {
-  const payload = await getUserFromRequest(req);
-  if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const payload = await getUserFromRequest(req);
+    if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { title, author, year, genre, coverId, olKey } = await req.json();
-  if (!title || !author) {
-    return NextResponse.json({ error: "Title and author required" }, { status: 400 });
-  }
+    const { title, author, year, genre, coverId, olKey } = await req.json();
+    if (!title || !author) {
+      return NextResponse.json({ error: "Title and author required" }, { status: 400 });
+    }
 
-  const db = getDb();
+    const db = getDb();
 
-  // Check if user already has this book with primer data
-  const existing = await db.execute({
-    sql: "SELECT * FROM user_books WHERE user_id = ? AND LOWER(title) = LOWER(?) AND LOWER(author) = LOWER(?)",
-    args: [payload.userId, title, author],
-  });
-
-  if (existing.rows.length > 0 && existing.rows[0].chapters) {
-    const book = existing.rows[0];
-    // Also get chapter progress
-    const progress = await db.execute({
-      sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND book_id = ?",
-      args: [payload.userId, book.id],
+    // Check if user already has this book with primer data
+    const existing = await db.execute({
+      sql: "SELECT * FROM user_books WHERE user_id = ? AND LOWER(title) = LOWER(?) AND LOWER(author) = LOWER(?)",
+      args: [payload.userId, title, author],
     });
 
-    return NextResponse.json({
-      book: formatBook(book, progress.rows.map((r) => r.chapter_number)),
-    });
-  }
+    if (existing.rows.length > 0 && existing.rows[0].chapters) {
+      const book = existing.rows[0];
+      const progress = await db.execute({
+        sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND book_id = ?",
+        args: [payload.userId, book.id],
+      });
 
-  // Generate primer via AI
-  const primer = await askClaudeJSON(
-    `You are a literary scholar. Generate a comprehensive primer for the given book. Return JSON with:
+      return NextResponse.json({
+        book: formatBook(book, progress.rows.map((r) => r.chapter_number)),
+      });
+    }
+
+    // Generate primer via AI
+    const primer = await askClaudeJSON(
+      `You are a literary scholar. Generate a comprehensive primer for the given book. Return JSON with:
 {
   "authorBio": "A 2-3 sentence bio of the author focusing on their literary significance",
   "historicalContext": "2-3 sentences about the historical period and context in which the book was written",
@@ -48,58 +49,66 @@ export async function POST(req) {
   "readingTips": "1-2 sentences of advice for approaching this book"
 }
 For the chapters array, include actual chapter titles/numbers. If the book has many chapters, include up to 30. Keep chapter summaries spoiler-light.`,
-    `Book: "${title}" by ${author}`,
-    2048
-  );
+      `Book: "${title}" by ${author}`,
+      2048
+    );
 
-  if (!primer) {
-    return NextResponse.json({ error: "Failed to generate primer" }, { status: 500 });
-  }
+    if (!primer) {
+      return NextResponse.json({ error: "Failed to generate primer. The AI service may be temporarily unavailable." }, { status: 502 });
+    }
 
-  // Save or update in database
-  const bookId = existing.rows.length > 0 ? existing.rows[0].id : null;
+    // Save or update in database
+    const bookId = existing.rows.length > 0 ? existing.rows[0].id : null;
 
-  if (bookId) {
-    await db.execute({
-      sql: `UPDATE user_books SET author_bio = ?, historical_context = ?, reading_tips = ?,
-            themes = ?, theme_descriptions = ?, chapters = ?, year = ?, genre = ?,
-            cover_id = ?, ol_key = ? WHERE id = ?`,
-      args: [
-        primer.authorBio || "", primer.historicalContext || "", primer.readingTips || "",
-        JSON.stringify(primer.themes || []), JSON.stringify(primer.themeDescriptions || {}),
-        JSON.stringify(primer.chapters || []), year || null, genre || null,
-        coverId || null, olKey || null, bookId,
-      ],
+    if (bookId) {
+      await db.execute({
+        sql: `UPDATE user_books SET author_bio = ?, historical_context = ?, reading_tips = ?,
+              themes = ?, theme_descriptions = ?, chapters = ?, year = ?, genre = ?,
+              cover_id = ?, ol_key = ? WHERE id = ?`,
+        args: [
+          primer.authorBio || "", primer.historicalContext || "", primer.readingTips || "",
+          JSON.stringify(primer.themes || []), JSON.stringify(primer.themeDescriptions || {}),
+          JSON.stringify(primer.chapters || []), year || null, genre || null,
+          coverId || null, olKey || null, bookId,
+        ],
+      });
+    } else {
+      await db.execute({
+        sql: `INSERT INTO user_books (user_id, title, author, year, genre, cover_id, ol_key,
+              author_bio, historical_context, reading_tips, themes, theme_descriptions, chapters)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          payload.userId, title, author, year || null, genre || null,
+          coverId || null, olKey || null,
+          primer.authorBio || "", primer.historicalContext || "", primer.readingTips || "",
+          JSON.stringify(primer.themes || []), JSON.stringify(primer.themeDescriptions || {}),
+          JSON.stringify(primer.chapters || []),
+        ],
+      });
+    }
+
+    // Fetch the saved book
+    const saved = await db.execute({
+      sql: "SELECT * FROM user_books WHERE user_id = ? AND LOWER(title) = LOWER(?) AND LOWER(author) = LOWER(?)",
+      args: [payload.userId, title, author],
     });
-  } else {
-    await db.execute({
-      sql: `INSERT INTO user_books (user_id, title, author, year, genre, cover_id, ol_key,
-            author_bio, historical_context, reading_tips, themes, theme_descriptions, chapters)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        payload.userId, title, author, year || null, genre || null,
-        coverId || null, olKey || null,
-        primer.authorBio || "", primer.historicalContext || "", primer.readingTips || "",
-        JSON.stringify(primer.themes || []), JSON.stringify(primer.themeDescriptions || {}),
-        JSON.stringify(primer.chapters || []),
-      ],
+
+    if (!saved.rows.length) {
+      return NextResponse.json({ error: "Failed to save book" }, { status: 500 });
+    }
+
+    const progress = await db.execute({
+      sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND book_id = ?",
+      args: [payload.userId, saved.rows[0].id],
     });
+
+    return NextResponse.json({
+      book: formatBook(saved.rows[0], progress.rows.map((r) => r.chapter_number)),
+    });
+  } catch (e) {
+    console.error("Primer route error:", e);
+    return NextResponse.json({ error: e.message || "Server error" }, { status: 500 });
   }
-
-  // Fetch the saved book
-  const saved = await db.execute({
-    sql: "SELECT * FROM user_books WHERE user_id = ? AND LOWER(title) = LOWER(?) AND LOWER(author) = LOWER(?)",
-    args: [payload.userId, title, author],
-  });
-
-  const progress = await db.execute({
-    sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND book_id = ?",
-    args: [payload.userId, saved.rows[0].id],
-  });
-
-  return NextResponse.json({
-    book: formatBook(saved.rows[0], progress.rows.map((r) => r.chapter_number)),
-  });
 }
 
 // GET: list all user books

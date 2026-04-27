@@ -5,6 +5,7 @@ import { askClaude } from "@/lib/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 export async function POST(req) {
   const payload = await getUserFromRequest(req);
