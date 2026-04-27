@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { askClaudeJSON } from "@/lib/ai";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   const payload = await getUserFromRequest(req);

@@ -3,6 +3,7 @@ import { getUserFromRequest } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   const payload = await getUserFromRequest(req);
