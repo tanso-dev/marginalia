@@ -31,16 +31,17 @@ export async function POST(req) {
     });
 
     const user = result.rows[0];
-    const token = await createToken(user.id, user.username);
+    const token = await createToken(Number(user.id), user.username);
 
     const res = NextResponse.json({
-      user: { id: user.id, username: user.username, displayName: user.display_name },
+      user: { id: Number(user.id), username: user.username, displayName: user.display_name },
     });
     res.cookies.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7,
+      path: "/",
     });
     return res;
   } catch (e) {

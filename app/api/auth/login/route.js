@@ -12,24 +12,30 @@ export async function POST(req) {
 
     const db = getDb();
     const result = await db.execute({
-      sql: "SELECT * FROM users WHERE username = ?",
+      sql: "SELECT id, username, display_name, password_hash FROM users WHERE username = ?",
       args: [username.toLowerCase().trim()],
     });
 
     const user = result.rows[0];
-    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+    if (!user) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
-    const token = await createToken(user.id, user.username);
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    if (!passwordMatch) {
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    }
+
+    const token = await createToken(Number(user.id), user.username);
     const res = NextResponse.json({
-      user: { id: user.id, username: user.username, displayName: user.display_name },
+      user: { id: Number(user.id), username: user.username, displayName: user.display_name },
     });
     res.cookies.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7,
+      path: "/",
     });
     return res;
   } catch (e) {
