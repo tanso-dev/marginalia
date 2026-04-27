@@ -16,6 +16,7 @@ function BookContent() {
   const [activeTheme, setActiveTheme] = useState(null);
   const [themeEvolution, setThemeEvolution] = useState({});
   const [themeLoading, setThemeLoading] = useState(null);
+  const [expandedChapter, setExpandedChapter] = useState(null);
   const messagesEndRef = useRef(null);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -344,43 +345,92 @@ function BookContent() {
             <div className="flex flex-col gap-1">
               {(book.chapters || []).map((ch) => {
                 const isRead = chaptersRead.includes(ch.number);
+                const isExpanded = expandedChapter === ch.number;
                 return (
-                  <div key={ch.number} className="flex items-center gap-3.5 px-4 py-3.5 rounded-lg hover:bg-surface transition-colors">
-                    <button
-                      onClick={() => toggleChapter(ch.number)}
-                      className={`w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                        isRead ? "bg-accent border-accent" : "border-border-light hover:border-accent-dim"
-                      }`}
+                  <div key={ch.number} className="rounded-lg hover:bg-surface transition-colors">
+                    {/* Main row — tappable on mobile to expand */}
+                    <div
+                      className="flex items-center gap-3.5 px-4 py-3.5 cursor-pointer md:cursor-default"
+                      onClick={() => {
+                        if (window.innerWidth < 768) {
+                          setExpandedChapter(isExpanded ? null : ch.number);
+                        }
+                      }}
                     >
-                      {isRead && (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                      )}
-                    </button>
-                    <span className="font-mono text-xs text-text-dim w-7 flex-shrink-0">{String(ch.number).padStart(2, "0")}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm">{ch.title}</div>
-                      {ch.summary && <div className="text-xs text-text-dim mt-0.5 truncate">{ch.summary}</div>}
-                    </div>
-                    <div className="flex gap-2 flex-shrink-0">
-                      {isRead && savedReflections[ch.number] && (
-                        <button
-                          onClick={() => openReflection(ch.number)}
-                          className="px-3.5 py-1.5 bg-accent/10 border border-accent-dim/30 rounded-md text-accent text-xs hover:bg-accent/20 transition-all flex items-center gap-1.5"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <path d="M9 18h6"/><path d="M10 22h4"/>
-                            <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0018 8 6 6 0 006 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5"/>
-                          </svg>
-                          Reflect
-                        </button>
-                      )}
                       <button
-                        onClick={() => openDiscussion(ch)}
-                        className="px-3.5 py-1.5 bg-surface-active border border-border rounded-md text-text-muted text-xs hover:border-accent-dim hover:text-accent transition-all"
+                        onClick={(e) => { e.stopPropagation(); toggleChapter(ch.number); }}
+                        className={`w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                          isRead ? "bg-accent border-accent" : "border-border-light hover:border-accent-dim"
+                        }`}
                       >
-                        Discuss
+                        {isRead && (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        )}
                       </button>
+                      <span className="font-mono text-xs text-text-dim w-7 flex-shrink-0">{String(ch.number).padStart(2, "0")}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm">{ch.title}</div>
+                        {/* Desktop: show summary inline (truncated) */}
+                        {ch.summary && <div className="text-xs text-text-dim mt-0.5 truncate hidden md:block">{ch.summary}</div>}
+                      </div>
+                      {/* Desktop: show buttons inline */}
+                      <div className="hidden md:flex gap-2 flex-shrink-0">
+                        {isRead && savedReflections[ch.number] && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openReflection(ch.number); }}
+                            className="px-3.5 py-1.5 bg-accent/10 border border-accent-dim/30 rounded-md text-accent text-xs hover:bg-accent/20 transition-all flex items-center gap-1.5"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <path d="M9 18h6"/><path d="M10 22h4"/>
+                              <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0018 8 6 6 0 006 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5"/>
+                            </svg>
+                            Reflect
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openDiscussion(ch); }}
+                          className="px-3.5 py-1.5 bg-surface-active border border-border rounded-md text-text-muted text-xs hover:border-accent-dim hover:text-accent transition-all"
+                        >
+                          Discuss
+                        </button>
+                      </div>
+                      {/* Mobile: chevron indicator */}
+                      <svg
+                        className={`w-4 h-4 text-text-dim flex-shrink-0 md:hidden transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
+                      >
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
                     </div>
+
+                    {/* Mobile expanded content */}
+                    {isExpanded && (
+                      <div className="px-4 pb-4 md:hidden">
+                        {ch.summary && (
+                          <p className="text-xs text-text-dim leading-relaxed ml-[62px] mb-3">{ch.summary}</p>
+                        )}
+                        <div className="flex gap-2 ml-[62px]">
+                          {isRead && savedReflections[ch.number] && (
+                            <button
+                              onClick={() => openReflection(ch.number)}
+                              className="px-3.5 py-2 bg-accent/10 border border-accent-dim/30 rounded-md text-accent text-xs hover:bg-accent/20 transition-all flex items-center gap-1.5"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <path d="M9 18h6"/><path d="M10 22h4"/>
+                                <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0018 8 6 6 0 006 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5"/>
+                              </svg>
+                              Reflect
+                            </button>
+                          )}
+                          <button
+                            onClick={() => openDiscussion(ch)}
+                            className="px-3.5 py-2 bg-surface-active border border-border rounded-md text-text-muted text-xs hover:border-accent-dim hover:text-accent transition-all"
+                          >
+                            Discuss
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
