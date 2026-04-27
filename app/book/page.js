@@ -12,6 +12,7 @@ function BookContent() {
   const [sending, setSending] = useState(false);
   const [socraticQ, setSocraticQ] = useState(null);
   const [socraticLoading, setSocraticLoading] = useState(false);
+  const [savedReflections, setSavedReflections] = useState({});
   const [activeTheme, setActiveTheme] = useState(null);
   const [themeEvolution, setThemeEvolution] = useState({});
   const [themeLoading, setThemeLoading] = useState(null);
@@ -49,6 +50,68 @@ function BookContent() {
     })();
   }, [title, author, router, searchParams]);
 
+  // Pencil-scratch checkmark sound using Web Audio API
+  const playCheckSound = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const sampleRate = ctx.sampleRate;
+
+      // Two strokes: short down-stroke, then longer up-stroke (like drawing a ✓)
+      const duration = 0.32;
+      const buffer = ctx.createBuffer(1, sampleRate * duration, sampleRate);
+      const data = buffer.getChannelData(0);
+
+      for (let i = 0; i < data.length; i++) {
+        const t = i / sampleRate;
+
+        // Stroke 1: short scratch (0 - 0.1s) — the short leg of the checkmark
+        // Stroke 2: longer scratch (0.1 - 0.28s) — the long leg going up
+        let amplitude = 0;
+        let frequency = 0;
+
+        if (t < 0.1) {
+          // Short downstroke — lower pitch, quick
+          const progress = t / 0.1;
+          amplitude = 0.12 * Math.sin(progress * Math.PI); // fade in/out
+          frequency = 2200 - progress * 600; // pitch slides down
+        } else if (t >= 0.11 && t < 0.28) {
+          // Longer upstroke — higher pitch, rising
+          const progress = (t - 0.11) / 0.17;
+          amplitude = 0.15 * Math.sin(progress * Math.PI); // fade in/out
+          frequency = 2000 + progress * 1800; // pitch rises up
+        }
+
+        // Scratchy texture: mix of noise and tone
+        const noise = (Math.random() * 2 - 1) * 0.6;
+        const tone = Math.sin(2 * Math.PI * frequency * t);
+        const scratch = Math.sin(2 * Math.PI * (frequency * 1.5) * t) * 0.3;
+        data[i] = amplitude * (tone * 0.35 + noise * 0.45 + scratch * 0.2);
+      }
+
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+
+      // Bandpass filter to sound more like pencil on paper
+      const filter = ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.value = 3000;
+      filter.Q.value = 0.8;
+
+      const gain = ctx.createGain();
+      gain.gain.value = 0.5;
+
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      source.start();
+
+      // Clean up
+      source.onended = () => ctx.close();
+    } catch (e) {
+      // Audio not supported, fail silently
+    }
+  };
+
   const toggleChapter = async (num) => {
     const isRead = book.chaptersRead?.includes(num);
     const res = await fetch("/api/books/progress", {
@@ -60,7 +123,15 @@ function BookContent() {
     setBook((b) => ({ ...b, chaptersRead: data.chaptersRead }));
 
     // Only trigger reflection when marking a chapter as COMPLETE (not when unchecking)
-    if (!isRead) generateSocratic(num);
+    if (!isRead) {
+      playCheckSound();
+      // If we already have a saved reflection for this chapter, show it
+      if (savedReflections[num]) {
+        setSocraticQ({ chapterNum: num, question: savedReflections[num] });
+      } else {
+        generateSocratic(num);
+      }
+    }
   };
 
   const generateSocratic = async (chapterNum) => {
@@ -71,8 +142,17 @@ function BookContent() {
       body: JSON.stringify({ bookId: book.id, chapterNumber: chapterNum }),
     });
     const data = await res.json();
-    setSocraticQ({ chapterNum, question: data.question });
+    const question = data.question;
+    // Save the reflection so user can access it later
+    setSavedReflections((prev) => ({ ...prev, [chapterNum]: question }));
+    setSocraticQ({ chapterNum, question });
     setSocraticLoading(false);
+  };
+
+  const openReflection = (chapterNum) => {
+    if (savedReflections[chapterNum]) {
+      setSocraticQ({ chapterNum, question: savedReflections[chapterNum] });
+    }
   };
 
   const openDiscussion = async (ch) => {
@@ -275,12 +355,26 @@ function BookContent() {
                       <div className="text-sm">{ch.title}</div>
                       {ch.summary && <div className="text-xs text-text-dim mt-0.5 truncate">{ch.summary}</div>}
                     </div>
-                    <button
-                      onClick={() => openDiscussion(ch)}
-                      className="px-3.5 py-1.5 bg-surface-active border border-border rounded-md text-text-muted text-xs hover:border-accent-dim hover:text-accent transition-all flex-shrink-0"
-                    >
-                      Discuss
-                    </button>
+                    <div className="flex gap-2 flex-shrink-0">
+                      {isRead && savedReflections[ch.number] && (
+                        <button
+                          onClick={() => openReflection(ch.number)}
+                          className="px-3.5 py-1.5 bg-accent/10 border border-accent-dim/30 rounded-md text-accent text-xs hover:bg-accent/20 transition-all flex items-center gap-1.5"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <path d="M9 18h6"/><path d="M10 22h4"/>
+                            <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0018 8 6 6 0 006 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5"/>
+                          </svg>
+                          Reflect
+                        </button>
+                      )}
+                      <button
+                        onClick={() => openDiscussion(ch)}
+                        className="px-3.5 py-1.5 bg-surface-active border border-border rounded-md text-text-muted text-xs hover:border-accent-dim hover:text-accent transition-all"
+                      >
+                        Discuss
+                      </button>
+                    </div>
                   </div>
                 );
               })}
