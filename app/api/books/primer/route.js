@@ -18,28 +18,24 @@ export async function POST(req) {
     }
 
     const db = getDb();
+    const titleLower = title.toLowerCase().trim();
+    const authorLower = author.toLowerCase().trim();
 
-    // Check if user already has this book with primer data
-    const existing = await db.execute({
-      sql: "SELECT * FROM user_books WHERE user_id = ? AND LOWER(title) = LOWER(?) AND LOWER(author) = LOWER(?)",
-      args: [payload.userId, title, author],
+    // Step 1: Check if this book already exists in the shared catalog
+    let catalog = await db.execute({
+      sql: "SELECT * FROM book_catalog WHERE title_lower = ? AND author_lower = ?",
+      args: [titleLower, authorLower],
     });
 
-    if (existing.rows.length > 0 && existing.rows[0].chapters) {
-      const book = existing.rows[0];
-      const progress = await db.execute({
-        sql: "SELECT chapter_number, reflection_question FROM chapter_progress WHERE user_id = ? AND book_id = ?",
-        args: [payload.userId, book.id],
-      });
+    let catalogId;
 
-      return NextResponse.json({
-        book: formatBook(book, progress.rows),
-      });
-    }
-
-    // Generate primer via AI
-    const primer = await askClaudeJSON(
-      `You are a literary scholar. Generate a comprehensive primer for the given book. Return JSON with:
+    if (catalog.rows.length > 0 && catalog.rows[0].chapters) {
+      // Book exists with primer data — use it (no AI call needed)
+      catalogId = catalog.rows[0].id;
+    } else {
+      // Step 2: Generate primer via AI (first user to open this book pays the cost)
+      const primer = await askClaudeJSON(
+        `You are a literary scholar. Generate a comprehensive primer for the given book. Return JSON with:
 {
   "authorBio": "A 2-3 sentence bio of the author focusing on their literary significance",
   "historicalContext": "2-3 sentences about the historical period and context in which the book was written",
@@ -49,61 +45,75 @@ export async function POST(req) {
   "readingTips": "1-2 sentences of advice for approaching this book"
 }
 For the chapters array, include actual chapter titles/numbers. If the book has many chapters, include up to 30. Keep chapter summaries spoiler-light.`,
-      `Book: "${title}" by ${author}`,
-      2048
-    );
+        `Book: "${title}" by ${author}`,
+        2048
+      );
 
-    if (!primer) {
-      return NextResponse.json({ error: "Failed to generate primer. The AI service may be temporarily unavailable." }, { status: 502 });
+      if (!primer) {
+        return NextResponse.json({ error: "Failed to generate primer. The AI service may be temporarily unavailable." }, { status: 502 });
+      }
+
+      if (catalog.rows.length > 0) {
+        catalogId = catalog.rows[0].id;
+        await db.execute({
+          sql: `UPDATE book_catalog SET author_bio = ?, historical_context = ?, reading_tips = ?,
+                themes = ?, theme_descriptions = ?, chapters = ?, year = ?, genre = ?,
+                cover_id = ?, ol_key = ? WHERE id = ?`,
+          args: [
+            primer.authorBio || "", primer.historicalContext || "", primer.readingTips || "",
+            JSON.stringify(primer.themes || []), JSON.stringify(primer.themeDescriptions || {}),
+            JSON.stringify(primer.chapters || []), year || null, genre || null,
+            coverId || null, olKey || null, catalogId,
+          ],
+        });
+      } else {
+        await db.execute({
+          sql: `INSERT INTO book_catalog (title, author, title_lower, author_lower, year, genre, cover_id, ol_key,
+                author_bio, historical_context, reading_tips, themes, theme_descriptions, chapters)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [
+            title, author, titleLower, authorLower, year || null, genre || null,
+            coverId || null, olKey || null,
+            primer.authorBio || "", primer.historicalContext || "", primer.readingTips || "",
+            JSON.stringify(primer.themes || []), JSON.stringify(primer.themeDescriptions || {}),
+            JSON.stringify(primer.chapters || []),
+          ],
+        });
+
+        const newCatalog = await db.execute({
+          sql: "SELECT id FROM book_catalog WHERE title_lower = ? AND author_lower = ?",
+          args: [titleLower, authorLower],
+        });
+        catalogId = newCatalog.rows[0].id;
+      }
+
+      // Refresh catalog row
+      catalog = await db.execute({
+        sql: "SELECT * FROM book_catalog WHERE id = ?",
+        args: [catalogId],
+      });
     }
 
-    // Save or update in database
-    const bookId = existing.rows.length > 0 ? existing.rows[0].id : null;
-
-    if (bookId) {
-      await db.execute({
-        sql: `UPDATE user_books SET author_bio = ?, historical_context = ?, reading_tips = ?,
-              themes = ?, theme_descriptions = ?, chapters = ?, year = ?, genre = ?,
-              cover_id = ?, ol_key = ? WHERE id = ?`,
-        args: [
-          primer.authorBio || "", primer.historicalContext || "", primer.readingTips || "",
-          JSON.stringify(primer.themes || []), JSON.stringify(primer.themeDescriptions || {}),
-          JSON.stringify(primer.chapters || []), year || null, genre || null,
-          coverId || null, olKey || null, bookId,
-        ],
-      });
-    } else {
-      await db.execute({
-        sql: `INSERT INTO user_books (user_id, title, author, year, genre, cover_id, ol_key,
-              author_bio, historical_context, reading_tips, themes, theme_descriptions, chapters)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          payload.userId, title, author, year || null, genre || null,
-          coverId || null, olKey || null,
-          primer.authorBio || "", primer.historicalContext || "", primer.readingTips || "",
-          JSON.stringify(primer.themes || []), JSON.stringify(primer.themeDescriptions || {}),
-          JSON.stringify(primer.chapters || []),
-        ],
-      });
-    }
-
-    // Fetch the saved book
-    const saved = await db.execute({
-      sql: "SELECT * FROM user_books WHERE user_id = ? AND LOWER(title) = LOWER(?) AND LOWER(author) = LOWER(?)",
-      args: [payload.userId, title, author],
+    // Step 3: Add book to user's library if not already there
+    await db.execute({
+      sql: "INSERT OR IGNORE INTO user_books (user_id, catalog_id) VALUES (?, ?)",
+      args: [payload.userId, catalogId],
     });
 
-    if (!saved.rows.length) {
-      return NextResponse.json({ error: "Failed to save book" }, { status: 500 });
-    }
-
+    // Step 4: Get user's chapter progress
     const progress = await db.execute({
-      sql: "SELECT chapter_number, reflection_question FROM chapter_progress WHERE user_id = ? AND book_id = ?",
-      args: [payload.userId, saved.rows[0].id],
+      sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND catalog_id = ?",
+      args: [payload.userId, catalogId],
+    });
+
+    // Step 5: Get shared reflection questions
+    const reflections = await db.execute({
+      sql: "SELECT chapter_number, reflection_question FROM chapter_reflections WHERE catalog_id = ?",
+      args: [catalogId],
     });
 
     return NextResponse.json({
-      book: formatBook(saved.rows[0], progress.rows),
+      book: formatBook(catalog.rows[0], progress.rows, reflections.rows),
     });
   } catch (e) {
     console.error("Primer route error:", e);
@@ -118,44 +128,50 @@ export async function GET(req) {
 
   const db = getDb();
   const books = await db.execute({
-    sql: "SELECT * FROM user_books WHERE user_id = ? ORDER BY created_at DESC",
+    sql: `SELECT bc.* FROM user_books ub 
+          JOIN book_catalog bc ON ub.catalog_id = bc.id 
+          WHERE ub.user_id = ? ORDER BY ub.created_at DESC`,
     args: [payload.userId],
   });
 
   const result = [];
   for (const book of books.rows) {
     const progress = await db.execute({
-      sql: "SELECT chapter_number, reflection_question FROM chapter_progress WHERE user_id = ? AND book_id = ?",
+      sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND catalog_id = ?",
       args: [payload.userId, book.id],
     });
-    result.push(formatBook(book, progress.rows));
+    const reflections = await db.execute({
+      sql: "SELECT chapter_number, reflection_question FROM chapter_reflections WHERE catalog_id = ?",
+      args: [book.id],
+    });
+    result.push(formatBook(book, progress.rows, reflections.rows));
   }
 
   return NextResponse.json({ books: result });
 }
 
-function formatBook(row, progressRows = []) {
+function formatBook(catalogRow, progressRows = [], reflectionRows = []) {
   const chaptersRead = progressRows.map((r) => r.chapter_number);
   const reflections = {};
-  for (const r of progressRows) {
+  for (const r of reflectionRows) {
     if (r.reflection_question) {
       reflections[r.chapter_number] = r.reflection_question;
     }
   }
   return {
-    id: row.id,
-    title: row.title,
-    author: row.author,
-    year: row.year,
-    genre: row.genre,
-    coverId: row.cover_id,
-    olKey: row.ol_key,
-    authorBio: row.author_bio,
-    historicalContext: row.historical_context,
-    readingTips: row.reading_tips,
-    themes: safeJSON(row.themes, []),
-    themeDescriptions: safeJSON(row.theme_descriptions, {}),
-    chapters: safeJSON(row.chapters, []),
+    id: catalogRow.id,
+    title: catalogRow.title,
+    author: catalogRow.author,
+    year: catalogRow.year,
+    genre: catalogRow.genre,
+    coverId: catalogRow.cover_id,
+    olKey: catalogRow.ol_key,
+    authorBio: catalogRow.author_bio,
+    historicalContext: catalogRow.historical_context,
+    readingTips: catalogRow.reading_tips,
+    themes: safeJSON(catalogRow.themes, []),
+    themeDescriptions: safeJSON(catalogRow.theme_descriptions, {}),
+    chapters: safeJSON(catalogRow.chapters, []),
     chaptersRead,
     reflections,
   };

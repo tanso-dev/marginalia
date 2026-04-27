@@ -82,11 +82,12 @@ CREATE TABLE IF NOT EXISTS users (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS user_books (
+CREATE TABLE IF NOT EXISTS book_catalog (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
   title TEXT NOT NULL,
   author TEXT NOT NULL,
+  title_lower TEXT NOT NULL,
+  author_lower TEXT NOT NULL,
   year INTEGER,
   genre TEXT,
   cover_id TEXT,
@@ -98,31 +99,50 @@ CREATE TABLE IF NOT EXISTS user_books (
   theme_descriptions TEXT,
   chapters TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(title_lower, author_lower)
+);
+
+CREATE TABLE IF NOT EXISTS chapter_reflections (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  catalog_id INTEGER NOT NULL,
+  chapter_number INTEGER NOT NULL,
+  reflection_question TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (catalog_id) REFERENCES book_catalog(id),
+  UNIQUE(catalog_id, chapter_number)
+);
+
+CREATE TABLE IF NOT EXISTS user_books (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  catalog_id INTEGER NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),
-  UNIQUE(user_id, title, author)
+  FOREIGN KEY (catalog_id) REFERENCES book_catalog(id),
+  UNIQUE(user_id, catalog_id)
 );
 
 CREATE TABLE IF NOT EXISTS chapter_progress (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
-  book_id INTEGER NOT NULL,
+  catalog_id INTEGER NOT NULL,
   chapter_number INTEGER NOT NULL,
   completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (book_id) REFERENCES user_books(id),
-  UNIQUE(user_id, book_id, chapter_number)
+  FOREIGN KEY (catalog_id) REFERENCES book_catalog(id),
+  UNIQUE(user_id, catalog_id, chapter_number)
 );
 
 CREATE TABLE IF NOT EXISTS chat_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
-  book_id INTEGER NOT NULL,
+  catalog_id INTEGER NOT NULL,
   chapter_number INTEGER NOT NULL,
   role TEXT NOT NULL,
   message TEXT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (book_id) REFERENCES user_books(id)
+  FOREIGN KEY (catalog_id) REFERENCES book_catalog(id)
 );
 ```
 

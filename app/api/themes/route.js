@@ -15,14 +15,14 @@ export async function POST(req) {
   const db = getDb();
 
   const bookResult = await db.execute({
-    sql: "SELECT * FROM user_books WHERE id = ? AND user_id = ?",
-    args: [bookId, payload.userId],
+    sql: "SELECT * FROM book_catalog WHERE id = ?",
+    args: [bookId],
   });
   const book = bookResult.rows[0];
   if (!book) return NextResponse.json({ error: "Book not found" }, { status: 404 });
 
   const progress = await db.execute({
-    sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND book_id = ?",
+    sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND catalog_id = ?",
     args: [payload.userId, bookId],
   });
   const chaptersRead = progress.rows.map((r) => r.chapter_number);

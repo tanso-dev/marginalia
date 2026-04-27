@@ -13,23 +13,19 @@ export async function POST(req) {
   const db = getDb();
 
   if (completed) {
-    try {
-      await db.execute({
-        sql: "INSERT OR IGNORE INTO chapter_progress (user_id, book_id, chapter_number) VALUES (?, ?, ?)",
-        args: [payload.userId, bookId, chapterNumber],
-      });
-    } catch (e) {
-      // Already exists, that's fine
-    }
+    await db.execute({
+      sql: "INSERT OR IGNORE INTO chapter_progress (user_id, catalog_id, chapter_number) VALUES (?, ?, ?)",
+      args: [payload.userId, bookId, chapterNumber],
+    });
   } else {
     await db.execute({
-      sql: "DELETE FROM chapter_progress WHERE user_id = ? AND book_id = ? AND chapter_number = ?",
+      sql: "DELETE FROM chapter_progress WHERE user_id = ? AND catalog_id = ? AND chapter_number = ?",
       args: [payload.userId, bookId, chapterNumber],
     });
   }
 
   const progress = await db.execute({
-    sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND book_id = ?",
+    sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND catalog_id = ?",
     args: [payload.userId, bookId],
   });
 

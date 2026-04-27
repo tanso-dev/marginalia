@@ -14,9 +14,21 @@ export async function POST(req) {
   const { bookId, chapterNumber } = await req.json();
   const db = getDb();
 
+  // Step 1: Check if a shared reflection already exists for this chapter
+  const existing = await db.execute({
+    sql: "SELECT reflection_question FROM chapter_reflections WHERE catalog_id = ? AND chapter_number = ?",
+    args: [bookId, chapterNumber],
+  });
+
+  if (existing.rows.length > 0 && existing.rows[0].reflection_question) {
+    // Reflection already exists — return it without an AI call
+    return NextResponse.json({ question: existing.rows[0].reflection_question });
+  }
+
+  // Step 2: No reflection exists — generate one and save it for everyone
   const bookResult = await db.execute({
-    sql: "SELECT * FROM user_books WHERE id = ? AND user_id = ?",
-    args: [bookId, payload.userId],
+    sql: "SELECT * FROM book_catalog WHERE id = ?",
+    args: [bookId],
   });
   const book = bookResult.rows[0];
   if (!book) return NextResponse.json({ error: "Book not found" }, { status: 404 });
@@ -30,11 +42,11 @@ export async function POST(req) {
     `Book: "${book.title}" by ${book.author}. Chapter ${chapterNumber}: "${chapter?.title || ""}". Themes: ${themes.join(", ")}.`
   );
 
-  // Save the reflection question to the database
+  // Save to shared chapter_reflections table
   try {
     await db.execute({
-      sql: "UPDATE chapter_progress SET reflection_question = ? WHERE user_id = ? AND book_id = ? AND chapter_number = ?",
-      args: [response, payload.userId, bookId, chapterNumber],
+      sql: "INSERT OR REPLACE INTO chapter_reflections (catalog_id, chapter_number, reflection_question) VALUES (?, ?, ?)",
+      args: [bookId, chapterNumber, response],
     });
   } catch (e) {
     console.error("Failed to save reflection:", e);

@@ -18,26 +18,26 @@ export async function POST(req) {
 
   const db = getDb();
 
-  // Get book info
+  // Get book info from shared catalog
   const bookResult = await db.execute({
-    sql: "SELECT * FROM user_books WHERE id = ? AND user_id = ?",
-    args: [bookId, payload.userId],
+    sql: "SELECT * FROM book_catalog WHERE id = ?",
+    args: [bookId],
   });
   const book = bookResult.rows[0];
   if (!book) return NextResponse.json({ error: "Book not found" }, { status: 404 });
 
-  // Get chapter progress for spoiler protection
+  // Get user's chapter progress for spoiler protection
   const progress = await db.execute({
-    sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND book_id = ?",
+    sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND catalog_id = ?",
     args: [payload.userId, bookId],
   });
   const chaptersRead = progress.rows.map((r) => r.chapter_number);
   const furthestRead = chaptersRead.length > 0 ? Math.max(...chaptersRead) : 0;
 
-  // Get recent chat history for context
+  // Get recent chat history for context (per-user)
   const history = await db.execute({
     sql: `SELECT role, message FROM chat_messages 
-          WHERE user_id = ? AND book_id = ? AND chapter_number = ?
+          WHERE user_id = ? AND catalog_id = ? AND chapter_number = ?
           ORDER BY created_at DESC LIMIT 6`,
     args: [payload.userId, bookId, chapterNumber],
   });
@@ -60,7 +60,7 @@ ${contextMessages}`;
 
   // Save user message
   await db.execute({
-    sql: "INSERT INTO chat_messages (user_id, book_id, chapter_number, role, message) VALUES (?, ?, ?, 'user', ?)",
+    sql: "INSERT INTO chat_messages (user_id, catalog_id, chapter_number, role, message) VALUES (?, ?, ?, 'user', ?)",
     args: [payload.userId, bookId, chapterNumber, message],
   });
 
@@ -72,14 +72,14 @@ ${contextMessages}`;
 
   // Save AI response
   await db.execute({
-    sql: "INSERT INTO chat_messages (user_id, book_id, chapter_number, role, message) VALUES (?, ?, ?, 'ai', ?)",
+    sql: "INSERT INTO chat_messages (user_id, catalog_id, chapter_number, role, message) VALUES (?, ?, ?, 'ai', ?)",
     args: [payload.userId, bookId, chapterNumber, response],
   });
 
   return NextResponse.json({ response });
 }
 
-// GET: load chat history for a chapter
+// GET: load chat history for a chapter (per-user)
 export async function GET(req) {
   const payload = await getUserFromRequest(req);
   if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -95,7 +95,7 @@ export async function GET(req) {
   const db = getDb();
   const result = await db.execute({
     sql: `SELECT role, message, created_at FROM chat_messages 
-          WHERE user_id = ? AND book_id = ? AND chapter_number = ?
+          WHERE user_id = ? AND catalog_id = ? AND chapter_number = ?
           ORDER BY created_at ASC`,
     args: [payload.userId, bookId, parseInt(chapterNumber)],
   });
