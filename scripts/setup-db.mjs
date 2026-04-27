@@ -51,6 +51,7 @@ async function setup() {
       user_id INTEGER NOT NULL,
       book_id INTEGER NOT NULL,
       chapter_number INTEGER NOT NULL,
+      reflection_question TEXT,
       completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (book_id) REFERENCES user_books(id),

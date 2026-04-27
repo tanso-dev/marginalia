@@ -30,6 +30,16 @@ export async function POST(req) {
     `Book: "${book.title}" by ${book.author}. Chapter ${chapterNumber}: "${chapter?.title || ""}". Themes: ${themes.join(", ")}.`
   );
 
+  // Save the reflection question to the database
+  try {
+    await db.execute({
+      sql: "UPDATE chapter_progress SET reflection_question = ? WHERE user_id = ? AND book_id = ? AND chapter_number = ?",
+      args: [response, payload.userId, bookId, chapterNumber],
+    });
+  } catch (e) {
+    console.error("Failed to save reflection:", e);
+  }
+
   return NextResponse.json({ question: response });
 }
 

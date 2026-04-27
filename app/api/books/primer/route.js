@@ -28,12 +28,12 @@ export async function POST(req) {
     if (existing.rows.length > 0 && existing.rows[0].chapters) {
       const book = existing.rows[0];
       const progress = await db.execute({
-        sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND book_id = ?",
+        sql: "SELECT chapter_number, reflection_question FROM chapter_progress WHERE user_id = ? AND book_id = ?",
         args: [payload.userId, book.id],
       });
 
       return NextResponse.json({
-        book: formatBook(book, progress.rows.map((r) => r.chapter_number)),
+        book: formatBook(book, progress.rows),
       });
     }
 
@@ -98,12 +98,12 @@ For the chapters array, include actual chapter titles/numbers. If the book has m
     }
 
     const progress = await db.execute({
-      sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND book_id = ?",
+      sql: "SELECT chapter_number, reflection_question FROM chapter_progress WHERE user_id = ? AND book_id = ?",
       args: [payload.userId, saved.rows[0].id],
     });
 
     return NextResponse.json({
-      book: formatBook(saved.rows[0], progress.rows.map((r) => r.chapter_number)),
+      book: formatBook(saved.rows[0], progress.rows),
     });
   } catch (e) {
     console.error("Primer route error:", e);
@@ -125,16 +125,23 @@ export async function GET(req) {
   const result = [];
   for (const book of books.rows) {
     const progress = await db.execute({
-      sql: "SELECT chapter_number FROM chapter_progress WHERE user_id = ? AND book_id = ?",
+      sql: "SELECT chapter_number, reflection_question FROM chapter_progress WHERE user_id = ? AND book_id = ?",
       args: [payload.userId, book.id],
     });
-    result.push(formatBook(book, progress.rows.map((r) => r.chapter_number)));
+    result.push(formatBook(book, progress.rows));
   }
 
   return NextResponse.json({ books: result });
 }
 
-function formatBook(row, chaptersRead = []) {
+function formatBook(row, progressRows = []) {
+  const chaptersRead = progressRows.map((r) => r.chapter_number);
+  const reflections = {};
+  for (const r of progressRows) {
+    if (r.reflection_question) {
+      reflections[r.chapter_number] = r.reflection_question;
+    }
+  }
   return {
     id: row.id,
     title: row.title,
@@ -150,6 +157,7 @@ function formatBook(row, chaptersRead = []) {
     themeDescriptions: safeJSON(row.theme_descriptions, {}),
     chapters: safeJSON(row.chapters, []),
     chaptersRead,
+    reflections,
   };
 }
 

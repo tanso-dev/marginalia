@@ -45,7 +45,13 @@ function BookContent() {
         }),
       });
       const data = await res.json();
-      if (data.book) setBook(data.book);
+      if (data.book) {
+        setBook(data.book);
+        // Load any saved reflections from the database
+        if (data.book.reflections) {
+          setSavedReflections(data.book.reflections);
+        }
+      }
       setLoading(false);
     })();
   }, [title, author, router, searchParams]);
