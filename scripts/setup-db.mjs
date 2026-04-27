@@ -53,7 +53,7 @@ async function setup() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       catalog_id INTEGER NOT NULL,
       chapter_number INTEGER NOT NULL,
-      reflection_question TEXT NOT NULL,
+      questions TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (catalog_id) REFERENCES book_catalog(id),
       UNIQUE(catalog_id, chapter_number)

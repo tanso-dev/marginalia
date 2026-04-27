@@ -125,7 +125,7 @@ CRITICAL RULES for the "chapters" array:
 
     // Step 5: Get shared reflection questions
     const reflections = await db.execute({
-      sql: "SELECT chapter_number, reflection_question FROM chapter_reflections WHERE catalog_id = ?",
+      sql: "SELECT chapter_number, questions FROM chapter_reflections WHERE catalog_id = ?",
       args: [catalogId],
     });
 
@@ -158,7 +158,7 @@ export async function GET(req) {
       args: [payload.userId, book.id],
     });
     const reflections = await db.execute({
-      sql: "SELECT chapter_number, reflection_question FROM chapter_reflections WHERE catalog_id = ?",
+      sql: "SELECT chapter_number, questions FROM chapter_reflections WHERE catalog_id = ?",
       args: [book.id],
     });
     result.push(formatBook(book, progress.rows, reflections.rows));
@@ -171,8 +171,11 @@ function formatBook(catalogRow, progressRows = [], reflectionRows = []) {
   const chaptersRead = progressRows.map((r) => r.chapter_number);
   const reflections = {};
   for (const r of reflectionRows) {
-    if (r.reflection_question) {
-      reflections[r.chapter_number] = r.reflection_question;
+    if (r.questions) {
+      const parsed = safeJSON(r.questions, []);
+      if (parsed.length > 0) {
+        reflections[r.chapter_number] = parsed;
+      }
     }
   }
   return {

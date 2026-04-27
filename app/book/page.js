@@ -12,7 +12,8 @@ function BookContent() {
   const [sending, setSending] = useState(false);
   const [socraticQ, setSocraticQ] = useState(null);
   const [socraticLoading, setSocraticLoading] = useState(false);
-  const [savedReflections, setSavedReflections] = useState({});
+  const [savedReflections, setSavedReflections] = useState({}); // { chapterNum: [q1, q2, q3] }
+  const [questionIndex, setQuestionIndex] = useState(0);
   const [activeTheme, setActiveTheme] = useState(null);
   const [themeEvolution, setThemeEvolution] = useState({});
   const [themeLoading, setThemeLoading] = useState(null);
@@ -132,9 +133,10 @@ function BookContent() {
     // Only trigger reflection when marking a chapter as COMPLETE (not when unchecking)
     if (!isRead) {
       playCheckSound();
-      // If we already have a saved reflection for this chapter, show it
-      if (savedReflections[num]) {
-        setSocraticQ({ chapterNum: num, question: savedReflections[num] });
+      // If we already have saved questions for this chapter, show the first one
+      if (savedReflections[num] && savedReflections[num].length > 0) {
+        setQuestionIndex(0);
+        setSocraticQ({ chapterNum: num, question: savedReflections[num][0] });
       } else {
         generateSocratic(num);
       }
@@ -149,16 +151,29 @@ function BookContent() {
       body: JSON.stringify({ bookId: book.id, chapterNumber: chapterNum }),
     });
     const data = await res.json();
-    const question = data.question;
-    // Save the reflection so user can access it later
-    setSavedReflections((prev) => ({ ...prev, [chapterNum]: question }));
-    setSocraticQ({ chapterNum, question });
+    const questions = data.questions || [];
+    setSavedReflections((prev) => ({ ...prev, [chapterNum]: questions }));
+    setQuestionIndex(0);
+    if (questions.length > 0) {
+      setSocraticQ({ chapterNum, question: questions[0] });
+    }
     setSocraticLoading(false);
   };
 
+  const cycleQuestion = () => {
+    if (!socraticQ) return;
+    const questions = savedReflections[socraticQ.chapterNum] || [];
+    if (questions.length <= 1) return;
+    const nextIndex = (questionIndex + 1) % questions.length;
+    setQuestionIndex(nextIndex);
+    setSocraticQ({ chapterNum: socraticQ.chapterNum, question: questions[nextIndex] });
+  };
+
   const openReflection = (chapterNum) => {
-    if (savedReflections[chapterNum]) {
-      setSocraticQ({ chapterNum, question: savedReflections[chapterNum] });
+    const questions = savedReflections[chapterNum];
+    if (questions && questions.length > 0) {
+      setQuestionIndex(0);
+      setSocraticQ({ chapterNum, question: questions[0] });
     }
   };
 
@@ -403,7 +418,7 @@ function BookContent() {
                       </div>
                       {/* Desktop: show buttons inline */}
                       <div className="hidden md:flex gap-2 flex-shrink-0">
-                        {isRead && savedReflections[ch.number] && (
+                        {isRead && savedReflections[ch.number]?.length > 0 && (
                           <button
                             onClick={(e) => { e.stopPropagation(); openReflection(ch.number); }}
                             className="px-3.5 py-1.5 bg-accent/10 border border-accent-dim/30 rounded-md text-accent text-xs hover:bg-accent/20 transition-all flex items-center gap-1.5"
@@ -438,7 +453,7 @@ function BookContent() {
                           <p className="text-xs text-text-dim leading-relaxed ml-[62px] mb-3">{ch.summary}</p>
                         )}
                         <div className="flex gap-2 ml-[62px]">
-                          {isRead && savedReflections[ch.number] && (
+                          {isRead && savedReflections[ch.number]?.length > 0 && (
                             <button
                               onClick={() => openReflection(ch.number)}
                               className="px-3.5 py-2 bg-accent/10 border border-accent-dim/30 rounded-md text-accent text-xs hover:bg-accent/20 transition-all flex items-center gap-1.5"
@@ -494,10 +509,18 @@ function BookContent() {
                     {socraticLoading ? (
                       <div className="flex flex-col items-center py-8">
                         <div className="spinner mb-4" />
-                        <p className="text-text-dim text-sm italic">Crafting a reflection question...</p>
+                        <p className="text-text-dim text-sm italic">Crafting reflection questions...</p>
                       </div>
                     ) : socraticQ ? (
                       <>
+                        {/* Question counter */}
+                        {(savedReflections[socraticQ.chapterNum]?.length || 0) > 1 && (
+                          <div className="flex items-center justify-center gap-1.5 mb-4">
+                            {(savedReflections[socraticQ.chapterNum] || []).map((_, i) => (
+                              <div key={i} className={`w-2 h-2 rounded-full transition-colors ${i === questionIndex ? "bg-accent" : "bg-border-light"}`} />
+                            ))}
+                          </div>
+                        )}
                         <p className="text-[15px] text-text leading-relaxed italic font-body">
                           "{socraticQ.question}"
                         </p>
@@ -518,12 +541,14 @@ function BookContent() {
                             Open Discussion
                           </button>
                           <div className="flex gap-2.5">
-                            <button
-                              onClick={() => generateSocratic(socraticQ.chapterNum)}
-                              className="flex-1 py-2.5 border border-border text-text-muted rounded-lg text-xs hover:border-border-light hover:text-text transition-all"
-                            >
-                              Different question
-                            </button>
+                            {(savedReflections[socraticQ.chapterNum]?.length || 0) > 1 && (
+                              <button
+                                onClick={cycleQuestion}
+                                className="flex-1 py-2.5 border border-border text-text-muted rounded-lg text-xs hover:border-border-light hover:text-text transition-all"
+                              >
+                                Next question
+                              </button>
+                            )}
                             <button
                               onClick={() => setSocraticQ(null)}
                               className="flex-1 py-2.5 border border-border text-text-muted rounded-lg text-xs hover:border-border-light hover:text-text transition-all"
