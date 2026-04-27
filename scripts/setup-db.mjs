@@ -37,6 +37,7 @@ async function setup() {
       author_bio TEXT,
       historical_context TEXT,
       reading_tips TEXT,
+      structure_note TEXT,
       themes TEXT,
       theme_descriptions TEXT,
       chapters TEXT,

@@ -338,8 +338,21 @@ function BookContent() {
             {/* Progress */}
             <div className="flex items-center gap-4 mb-5">
               <div className="flex-1 progress-bar"><div className="progress-fill" style={{ width: `${Math.round((readCount / totalChapters) * 100)}%` }} /></div>
-              <span className="text-[13px] text-text-dim whitespace-nowrap">{readCount}/{totalChapters} chapters</span>
+              <span className="text-[13px] text-text-dim whitespace-nowrap">{readCount}/{totalChapters} sections</span>
             </div>
+
+            {/* Structure note for non-conventional books */}
+            {book.structureNote && (
+              <div className="mb-4 px-4 py-3 bg-surface rounded-lg border border-border">
+                <div className="flex items-center gap-2 mb-1">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-accent" strokeWidth="1.5">
+                    <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+                  </svg>
+                  <span className="text-xs uppercase tracking-wider text-accent font-display">Structure</span>
+                </div>
+                <p className="text-[13px] text-text-muted leading-relaxed">{book.structureNote}</p>
+              </div>
+            )}
 
             {/* Chapter list */}
             <div className="flex flex-col gap-1">

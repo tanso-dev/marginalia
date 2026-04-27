@@ -38,8 +38,8 @@ export async function POST(req) {
   const chapter = chapters.find((c) => c.number === chapterNumber);
 
   const response = await askClaude(
-    `You are a Socratic literary tutor. Generate ONE thought-provoking reflection question for a reader who just finished the given chapter. The question should push them to think about character motivations, thematic implications, or connections to their own life. Do NOT summarize the chapter. Just ask the question — nothing else. No preamble. The question should be 1-2 sentences max.`,
-    `Book: "${book.title}" by ${book.author}. Chapter ${chapterNumber}: "${chapter?.title || ""}". Themes: ${themes.join(", ")}.`
+    `You are a Socratic literary tutor. Generate ONE thought-provoking reflection question for a reader who just finished the given section of this book. The question should push them to think about character motivations, thematic implications, narrative technique, or connections to their own life. Do NOT summarize the section. Just ask the question — nothing else. No preamble. The question should be 1-2 sentences max. Note: this book may not follow a traditional chapter structure — adapt your question to the specific section format.`,
+    `Book: "${book.title}" by ${book.author}. Section ${chapterNumber}: "${chapter?.title || ""}". Book structure: ${book.structure_note || "Standard chapters"}. Themes: ${themes.join(", ")}.`
   );
 
   // Save to shared chapter_reflections table

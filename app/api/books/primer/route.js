@@ -41,10 +41,19 @@ export async function POST(req) {
   "historicalContext": "2-3 sentences about the historical period and context in which the book was written",
   "themes": ["theme1", "theme2"],
   "themeDescriptions": {"theme1": "brief description"},
-  "chapters": [{"number": 1, "title": "Chapter Title or description", "summary": "1 sentence teaser without spoilers"}],
+  "structureNote": "1 sentence explaining how this book is structured (e.g. 'Traditional chapters', 'Two novellas', 'Numbered fragments', 'Alternating perspectives', etc.)",
+  "chapters": [{"number": 1, "title": "Section or chapter title", "summary": "1 sentence teaser without spoilers"}],
   "readingTips": "1-2 sentences of advice for approaching this book"
 }
-For the chapters array, include actual chapter titles/numbers. If the book has many chapters, include up to 30. Keep chapter summaries spoiler-light.`,
+
+IMPORTANT — About the "chapters" array:
+- First, determine how the book is actually structured. Not all books use conventional numbered chapters.
+- If the book has standard chapters, list them normally.
+- If the book contains multiple novellas or parts (like an omnibus), create entries for each major part/novella, then subdivide if meaningful. Example: {"number": 1, "title": "Part I: Hear the Wind Sing"} followed by sections within it.
+- If the book uses numbered fragments, short vignettes, or non-linear sections, group them into logical reading segments of roughly equal size (e.g. "Sections 1-5", "Sections 6-12") rather than listing every tiny fragment.
+- If the book alternates between storylines, narrators, or timelines, make that clear in each entry's title (e.g. "Chapters 1-3 (1984 Timeline)" or "Part II: Bone Clocks — Hugo's Narrative").
+- Maximum 30 entries. The goal is to create meaningful checkpoints for a reader to track progress and reflect — not to exhaustively list every page break.
+- Keep summaries spoiler-light.`,
         `Book: "${title}" by ${author}`,
         2048
       );
@@ -57,11 +66,11 @@ For the chapters array, include actual chapter titles/numbers. If the book has m
         catalogId = catalog.rows[0].id;
         await db.execute({
           sql: `UPDATE book_catalog SET author_bio = ?, historical_context = ?, reading_tips = ?,
-                themes = ?, theme_descriptions = ?, chapters = ?, year = ?, genre = ?,
+                structure_note = ?, themes = ?, theme_descriptions = ?, chapters = ?, year = ?, genre = ?,
                 cover_id = ?, ol_key = ? WHERE id = ?`,
           args: [
             primer.authorBio || "", primer.historicalContext || "", primer.readingTips || "",
-            JSON.stringify(primer.themes || []), JSON.stringify(primer.themeDescriptions || {}),
+            primer.structureNote || "", JSON.stringify(primer.themes || []), JSON.stringify(primer.themeDescriptions || {}),
             JSON.stringify(primer.chapters || []), year || null, genre || null,
             coverId || null, olKey || null, catalogId,
           ],
@@ -69,13 +78,13 @@ For the chapters array, include actual chapter titles/numbers. If the book has m
       } else {
         await db.execute({
           sql: `INSERT INTO book_catalog (title, author, title_lower, author_lower, year, genre, cover_id, ol_key,
-                author_bio, historical_context, reading_tips, themes, theme_descriptions, chapters)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                author_bio, historical_context, reading_tips, structure_note, themes, theme_descriptions, chapters)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             title, author, titleLower, authorLower, year || null, genre || null,
             coverId || null, olKey || null,
             primer.authorBio || "", primer.historicalContext || "", primer.readingTips || "",
-            JSON.stringify(primer.themes || []), JSON.stringify(primer.themeDescriptions || {}),
+            primer.structureNote || "", JSON.stringify(primer.themes || []), JSON.stringify(primer.themeDescriptions || {}),
             JSON.stringify(primer.chapters || []),
           ],
         });
@@ -169,6 +178,7 @@ function formatBook(catalogRow, progressRows = [], reflectionRows = []) {
     authorBio: catalogRow.author_bio,
     historicalContext: catalogRow.historical_context,
     readingTips: catalogRow.reading_tips,
+    structureNote: catalogRow.structure_note || null,
     themes: safeJSON(catalogRow.themes, []),
     themeDescriptions: safeJSON(catalogRow.theme_descriptions, {}),
     chapters: safeJSON(catalogRow.chapters, []),
