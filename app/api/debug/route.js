@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 export async function GET(req) {
   const checks = {};
 
@@ -9,11 +11,12 @@ export async function GET(req) {
     hasTursoToken: !!process.env.TURSO_AUTH_TOKEN,
     hasJwtSecret: !!process.env.JWT_SECRET,
     hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+    tursoUrlPrefix: process.env.TURSO_DATABASE_URL?.substring(0, 15) + "...",
   };
 
   // Check 2: Database connection
   try {
-    const { createClient } = await import("@libsql/client/web");
+    const { createClient } = await import("@libsql/client");
     const db = createClient({
       url: process.env.TURSO_DATABASE_URL,
       authToken: process.env.TURSO_AUTH_TOKEN,
@@ -21,7 +24,7 @@ export async function GET(req) {
     const result = await db.execute("SELECT COUNT(*) as count FROM users");
     checks.database = { ok: true, userCount: Number(result.rows[0].count) };
   } catch (e) {
-    checks.database = { ok: false, error: e.message };
+    checks.database = { ok: false, error: e.message, stack: e.stack?.split("\n").slice(0, 3) };
   }
 
   // Check 3: JWT/jose

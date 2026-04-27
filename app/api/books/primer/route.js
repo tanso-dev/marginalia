@@ -3,6 +3,8 @@ import { getUserFromRequest } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { askClaudeJSON } from "@/lib/ai";
 
+export const runtime = "nodejs";
+
 export async function POST(req) {
   const payload = await getUserFromRequest(req);
   if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -3,6 +3,9 @@ import { getDb } from "@/lib/db";
 import { createToken } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
+export const runtime = "nodejs";
+
+
 export async function POST(req) {
   try {
     const { username, password } = await req.json();
